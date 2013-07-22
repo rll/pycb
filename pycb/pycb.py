@@ -767,11 +767,11 @@ def draw_boards(img, corners, chessboards, old_corners=None):
         imshow(img)
     hold(True)
     for board in chessboards:
+        rs = corners[board.flatten()]
+        scatter(rs[:, 0], rs[:, 1], color='green')
         if old_corners is not None:
             cs = old_corners[board.flatten()]
             scatter(cs[:, 0], cs[:, 1], color='red')
-        rs = corners[board.flatten()]
-        scatter(rs[:, 0], rs[:, 1], color='green')
     show()
 
 def extract_chessboards(img, include_unrefined=False):
