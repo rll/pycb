@@ -1,138 +1,12 @@
 import numpy as np
 import scipy as sp
 from numpy import pi
-from numpy.linalg import norm
 from scipy.misc import imresize
-from scipy import ndimage
-from scipy.signal import convolve2d
-import c_pycb
-from scipy.ndimage import correlate1d
 
-## theano ## 
 import theano
 from theano.tensor.signal.conv import conv2d as theano_conv2d
-####
 
-import time
-
-def mysobel(input, axis, mode = "reflect", cval = 0.0):
-    output = correlate1d(input, [1, 0, -1], axis, None, mode, cval, 0)
-    axes = [ii for ii in range(input.ndim) if ii != axis]
-    for ii in axes:
-        correlate1d(output, [1, 1, 1], ii, output, mode, cval, 0,)
-    return output
-
-def zero_pad(input, num):
-    padded = np.empty((input.shape[0]+num, input.shape[1]+num), dtype=input.dtype)
-    border = num-1
-    padded[border:-border, border:-border] = input
-    for i in range(border):
-        padded[i, :] = 0
-        padded[-(i+1), :] = 0
-        padded[:, i] = 0
-        padded[:, -(i+1)] = 0
-    return padded
-
-def get_du(input, padded=False):
-    if padded:
-        padded = input
-    else:
-        padded = zero_pad(input, 2)
-    colconvol = padded[:,1:-1] - padded[:,2:]
-    rowconvol = colconvol[1:-1,:] + colconvol[:-2,:] + colconvol[2:,:]
-    return rowconvol
-
-def get_dv(input, padded=False):
-    if padded:
-        padded = input
-    else:
-        padded = zero_pad(input, 2)
-    rowconvol = padded[1:-1,:] - padded[2:,:]
-    colconvol = rowconvol[:,1:-1] + rowconvol[:,:-2] + rowconvol[:,2:]
-    return colconvol
-
-def get_du2(input, padded=False):
-    mask_u = np.array([[-1, 0, 1],
-                       [-1, 0, 1],
-                       [-1, 0, 1]], dtype=np.float)
-    return c_pycb.conv2(input, mask_u)
-
-#class Template(object):
-#
-#    def __init__(self, angle_1, angle_2, radius):
-#        width  = radius*2+1
-#        height = radius*2+1
-#
-#        if int(width) != width or int(height) != height:
-#            raise Exception("bad width/height")
-#        else:
-#            width = int(width)
-#            height = int(height)
-#
-#        self.a1 = np.zeros((height, width), dtype=np.double)
-#        self.a2 = np.zeros((height, width), dtype=np.double)
-#        self.b1 = np.zeros((height, width), dtype=np.double)
-#        self.b2 = np.zeros((height, width), dtype=np.double)
-#
-#        # midpoint
-#        mu = radius
-#        mv = radius
-#
-#        # compute normals from angles
-#        n1 = np.array([[-np.sin(angle_1)],  [np.cos(angle_1)]])
-#        n2 = np.array([[-np.sin(angle_2)],  [np.cos(angle_2)]])
-#
-#        vecs = np.empty((width*height, 2))
-#        for u in range(width):
-#            for v in range(height):
-#                idx = v * width + u
-#                vecs[idx, 0] = u-mu
-#                vecs[idx, 1] = v-mv
-#
-#        dist = np.sqrt(np.sum(vecs**2,axis=-1))
-#        s1 = vecs.dot(n1)
-#        s2 = vecs.dot(n2)
-#        values = normpdf(dist, 0, radius/2)
-#        
-#        for u in range(width):
-#            for v in range(height):
-#                idx = v * width + u
-#                if s1[idx]<=-0.1 and s2[idx]<=-0.1:
-#                    self.a1[v, u] = values[idx]
-#                elif s1[idx]>=0.1 and s2[idx]>=0.1:
-#                    self.a2[v, u] = values[idx]
-#                elif s1[idx]<=-0.1 and s2[idx]>=0.1:
-#                    self.b1[v, u] = values[idx]
-#                elif s1[idx]>=0.1 and s2[idx]<=-0.1:
-#                    self.b2[v, u] = values[idx]
-#
-#        #n1 = np.array([-np.sin(angle_1),  np.cos(angle_1)])
-#        #n2 = np.array([-np.sin(angle_2),  np.cos(angle_2)])
-#
-#        ## for all points in template do
-#        #for u in range(width):
-#        #    for v in range(height):
-#        #        vec  = np.array([u-mu, v-mv])
-#        #        dist = np.sqrt(vec.dot(vec))
-#
-#        #        # check on which side of the normals we are
-#        #        s1 = vec.dot(n1)
-#        #        s2 = vec.dot(n2)
-#
-#        #        if s1<=-0.1 and s2<=-0.1:
-#        #            self.a1[v, u] = normpdf(dist, 0, radius/2)
-#        #        elif s1>=0.1 and s2>=0.1:
-#        #            self.a2[v, u] = normpdf(dist, 0, radius/2)
-#        #        elif s1<=-0.1 and s2>=0.1:
-#        #            self.b1[v, u] = normpdf(dist, 0, radius/2)
-#        #        elif s1>=0.1 and s2<=-0.1:
-#        #            self.b2[v, u] = normpdf(dist, 0, radius/2)
-#
-#        # normalize
-#        self.a1 = self.a1/self.a1.sum()
-#        self.a2 = self.a2/self.a2.sum()
-#        self.b1 = self.b1/self.b1.sum()
-#        self.b2 = self.b2/self.b2.sum()
+import c_pycb
 
 def edge_orientations(img_angle, img_weight):
 
@@ -272,44 +146,14 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
         window_u = slice(max(cu-r,0), min(cu+r+1,width))
         window_v = slice(max(cv-r,0), min(cv+r+1,height))
 
+        # pixel orientation vectors
         sub_du = img_du[window_v,window_u].flatten('F')
         sub_dv = img_dv[window_v,window_u].flatten('F')
         os = np.column_stack([sub_du, sub_dv])
         norm_os = np.sqrt(np.sum(os**2,axis=-1))
         os = os / norm_os[:, np.newaxis]
 
-
         A1, A2 = c_pycb.refine_orientation(cu, cv, r, width, height, norm_os, os, img_du, img_dv, v1[i, :], v2[i, :])
-        #A1 = np.zeros((2,2))
-        #A2 = np.zeros((2,2))
-        #o_idx = -1
-        #for u in range(max(cu-r,0), min(cu+r+1,width)):
-        #    for v in range(max(cv-r,0), min(cv+r+1,height)):
-        #        o_idx += 1
-        #        # pixel orientation vector
-        #        #o = np.array([img_du[v,u], img_dv[v,u]])
-        #        #norm_o = np.sqrt(o.dot(o))
-        #        #if norm_o != norm_os[o_idx]:
-        #        #    print o
-        #        #    print norm_o
-        #        #    print o/norm_o
-        #        #    print os[o_idx]
-        #        #    print norm_os[o_idx]
-        #        #    asd
-        #        if  norm_os[o_idx] < 0.1:
-        #            continue
-        #        #o = o/norm_o
-
-        #        # robust refinement of orientation 1
-        #        if abs(os[o_idx].dot(v1[i,:])) < 0.25: # inlier?
-        #            A1[0,:] += img_du[v,u] * np.array([img_du[v,u],img_dv[v,u]])
-        #            A1[1,:] += img_dv[v,u] * np.array([img_du[v,u],img_dv[v,u]])
-
-        #        # robust refinement of orientation 2
-        #        if abs(os[o_idx].dot(v2[i,:])) < 0.25: # inlier?
-        #            A2[0,:] += img_du[v,u] * np.array([img_du[v,u],img_dv[v,u]])
-        #            A2[1,:] += img_dv[v,u] * np.array([img_du[v,u],img_dv[v,u]])
-
 
         # set new corner orientation
         w1, vec1 = np.linalg.eigh(A1)
@@ -324,28 +168,22 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
         G = np.zeros((2,2), dtype=np.float)
         b = np.zeros((2,1), dtype=np.float)
         o_idx = -1
+
         for u in range(max(cu-r,0), min(cu+r+1,width)):
             for v in range(max(cv-r,0), min(cv+r+1,height)):
                 o_idx += 1
-                # pixel orientation vector
-                #o = np.array([img_du[v,u], img_dv[v,u]])
-                #norm_o = np.sqrt(o.dot(o))
+
                 if  norm_os[o_idx] < 0.1:
                     continue
-                #o = o/norm_o
 
                 # robust subpixel corner estimation
 
                 # do not consider center pixel
+
                 if u!=cu or v!=cv:
 
                     d1 = c_pycb.rel_pixel_distance(u,v,cu,cv,v1[i])
                     d2 = c_pycb.rel_pixel_distance(u,v,cu,cv,v2[i])
-
-                    ## compute rel. position of pixel and distance to vectors
-                    #w  = np.array([u, v])-np.array([cu, cv])
-                    #d1 = norm(w-w.dot(v1[i,np.newaxis].T.dot(v1[i,np.newaxis])))
-                    #d2 = norm(w-w.dot(v2[i,np.newaxis].T.dot(v2[i,np.newaxis])))
 
                     # if corresponds with either of the vectors / directions
                     if ((d1 < 3 and abs(os[o_idx].dot(v1[i,:])) < 0.25) or
@@ -357,7 +195,6 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
                         G += H
                         b += H.dot(np.array([u, v])[:, np.newaxis])
 
-
         # set new corner location if G has full rank
         if np.linalg.matrix_rank(G) == 2:
             corner_pos_old = corners[i,:]
@@ -365,7 +202,7 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
             refined[i,:] = corner_pos_new
 
             # set corner to invalid, if position update is very large
-            if norm(corner_pos_new-corner_pos_old) >= 4:
+            if np.linalg.norm(corner_pos_new-corner_pos_old) >= 4:
                 v1[i,:] = 0
                 v2[i,:] = 0
         else:
@@ -373,9 +210,6 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
             v2[i,:] = 0
 
     return refined, v1, v2
-
-def rgb2gray(rgb):
-    return np.dot(rgb[...,:3], [0.299, 0.587, 0.144])
 
 def non_maximum_supression(img, n, tau, margin):
 
@@ -470,26 +304,13 @@ def corner_correlation_score(img, img_weight, v1, v2):
     p2 = p1 - p1.dot(v1_2)
     p3 = p1 - p1.dot(v2_2)
     
+    # Vectorize these computations
     p2_norm = np.sqrt(np.sum(p2**2, axis=-1))
     p3_norm = np.sqrt(np.sum(p3**2, axis=-1))
 
     vec_filter = -1*np.ones(np.prod(img.shape), dtype=np.float)
     vec_filter[(p2_norm <= 1.5) | (p3_norm <= 1.5)] = 1
             
-    #xy = np.empty((1,2))
-    ### compute gradient filter kernel (bandwith = 3 px)
-    #img_filter = -1*np.ones(img_weight.shape)
-    #for x in range(img_weight.shape[1]):
-    #    for y in range(img_weight.shape[0]):
-    #        xy[0,0] = x
-    #        xy[0,1] = y
-    #        p1 = xy - c
-    #        p2 = p1.dot(v1[np.newaxis].T.dot(v1[np.newaxis]))
-    #        p3 = p1.dot(v2[np.newaxis].T.dot(v2[np.newaxis]))
-    #        if norm(p1-p2)<=1.5 or norm(p1-p3)<=1.5:
-    #            img_filter[y,x] = 1
-    #vec_filter = img_filter.flatten()
-
     # convert into vectors
     vec_weight = img_weight.flatten()
 
@@ -534,7 +355,7 @@ def gradient(img, img_theano=None):
     height, width = img.shape
 
     if img_theano is None:
-        img_theano = img
+        img_theano = theano.shared(img)
 
     # compute image derivatives (for principal axes estimation)
 
@@ -544,16 +365,17 @@ def gradient(img, img_theano=None):
                        [-1, 0, 1]], dtype=np.float)
     mask_v = mask_u.T
 
-    #### theano ###
+    # batch masks for speed
     masks = np.empty((2, mask_u.shape[0], mask_u.shape[1]),dtype=mask_u.dtype)
     masks[0,:,:] = mask_u
     masks[1,:,:] = mask_v
 
     ds = theano_conv2d(img_theano, masks, border_mode='full').eval()
+
+    # Strip off padding
     offset = (mask_u.shape[0]-1)/2
     du = ds[0, offset:height+offset, offset:width+offset]
     dv = ds[1, offset:height+offset, offset:width+offset]
-    #######
 
     angle = np.arctan2(dv, du)
     weight = np.sqrt(np.power(du, 2) + np.power(dv, 2))
@@ -563,12 +385,6 @@ def gradient(img, img_theano=None):
     angle[angle>pi] = angle[angle>pi] - pi
 
     return du, dv, angle, weight
-
-def prepare_image(img):
-    img = img.astype(np.float64) / 255.0
-    if len(img.shape) == 3:
-        img = rgb2gray(img)
-    return img
 
 def find_corners(img, tau=0.01, refine_corners=True):
 
@@ -714,11 +530,6 @@ def chessboards_from_corners(corners, v1, v2):
         if min_val < energy:
           chessboard = proposals[min_idx]
           energy = min_val
-          #if 0
-          #  figure, hold on, axis equal;
-          #  chessboards{1} = chessboard;
-          #  plotChessboards(chessboards,corners);
-          #  keyboard;
         else:
           break
 
@@ -806,13 +617,6 @@ def grow_chessboard(chessboard, corners, border_type):
 
 def predict_corners(p1,p2,p3):
 
-    # linear prediction (old)
-    # function pred = predictCorners(p1,p2,p3)
-    # pred = 2*p3-p2;
-
-    # replica prediction (new)
-
-    # compute vectors
     v1 = p2-p1
     v2 = p3-p2
 
@@ -845,6 +649,7 @@ def assign_closest_corners(cand, pred):
         D[:,i] = np.sqrt(delta[:,0]**2+delta[:,1]**2)
 
     idx = np.zeros((1, pred.shape[0]), dtype=np.int)
+
     # search greedily for closest corners
     for i in range(pred.shape[0]):
         (row,col) = np.where(D==D.min())
@@ -944,14 +749,15 @@ def chessboard_energy(chessboard, corners):
     # final energy
     return E_corners + num_corners*E_structure
 
-def timetest():
-    from scipy.misc import imread
-    img_big = imread('examples/scene1.jpg')
-    scale_factor = .2
-    img = imresize(img_big, scale_factor, interp='bicubic')
+def rgb2gray(rgb):
+    return np.dot(rgb[...,:3], [0.299, 0.587, 0.144])
 
-    print "Finding corners..."
-    corners, v1, v2 = find_corners(img)
+def prepare_image(img):
+    img = img.astype(np.float64) / 255.0
+    if len(img.shape) == 3:
+        img = rgb2gray(img)
+    return img
+
 
 def main():
     from scipy.misc import imread
@@ -1037,4 +843,4 @@ def extract_chessboards(filename):
 if __name__ == "__main__":
 
     img, corners, refined, chessboards = main()
-    draw_boards(img, corners, chessboards)
+    draw_boards(img, corners, refined, chessboards)
