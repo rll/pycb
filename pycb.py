@@ -6,13 +6,56 @@ from scipy.misc import imresize
 from scipy import ndimage
 from scipy.signal import convolve2d
 import c_pycb
+from scipy.ndimage import correlate1d
 
 ## theano ## 
 import theano
-from theano.tensor.signal.conv import conv2d
+from theano.tensor.signal.conv import conv2d as theano_conv2d
 ####
 
 import time
+
+def mysobel(input, axis, mode = "reflect", cval = 0.0):
+    output = correlate1d(input, [1, 0, -1], axis, None, mode, cval, 0)
+    axes = [ii for ii in range(input.ndim) if ii != axis]
+    for ii in axes:
+        correlate1d(output, [1, 1, 1], ii, output, mode, cval, 0,)
+    return output
+
+def zero_pad(input, num):
+    padded = np.empty((input.shape[0]+num, input.shape[1]+num), dtype=input.dtype)
+    border = num-1
+    padded[border:-border, border:-border] = input
+    for i in range(border):
+        padded[i, :] = 0
+        padded[-(i+1), :] = 0
+        padded[:, i] = 0
+        padded[:, -(i+1)] = 0
+    return padded
+
+def get_du(input, padded=False):
+    if padded:
+        padded = input
+    else:
+        padded = zero_pad(input, 2)
+    colconvol = padded[:,1:-1] - padded[:,2:]
+    rowconvol = colconvol[1:-1,:] + colconvol[:-2,:] + colconvol[2:,:]
+    return rowconvol
+
+def get_dv(input, padded=False):
+    if padded:
+        padded = input
+    else:
+        padded = zero_pad(input, 2)
+    rowconvol = padded[1:-1,:] - padded[2:,:]
+    colconvol = rowconvol[:,1:-1] + rowconvol[:,:-2] + rowconvol[:,2:]
+    return colconvol
+
+def get_du2(input, padded=False):
+    mask_u = np.array([[-1, 0, 1],
+                       [-1, 0, 1],
+                       [-1, 0, 1]], dtype=np.float)
+    return c_pycb.conv2(input, mask_u)
 
 #class Template(object):
 #
@@ -486,12 +529,12 @@ def corner_correlation_score(img, img_weight, v1, v2):
     # final score: product of gradient and intensity score
     return score_gradient*score_intensity
 
-def gradient(img, img_t=None):
+def gradient(img, img_theano=None):
 
     height, width = img.shape
 
-    if img_t is None:
-        img_t = theano.shared(img)
+    if img_theano is None:
+        img_theano = img
 
     # compute image derivatives (for principal axes estimation)
 
@@ -501,19 +544,16 @@ def gradient(img, img_t=None):
                        [-1, 0, 1]], dtype=np.float)
     mask_v = mask_u.T
 
-    ### theano ###
+    #### theano ###
     masks = np.empty((2, mask_u.shape[0], mask_u.shape[1]),dtype=mask_u.dtype)
     masks[0,:,:] = mask_u
     masks[1,:,:] = mask_v
-    masks_t = theano.shared(masks)
-    ds = conv2d(img_t, masks_t, border_mode='full').eval()
+
+    ds = theano_conv2d(img_theano, masks, border_mode='full').eval()
     offset = (mask_u.shape[0]-1)/2
     du = ds[0, offset:height+offset, offset:width+offset]
     dv = ds[1, offset:height+offset, offset:width+offset]
-    ######
-
-    #du = convolve2d(img, mask_u, 'same')
-    #dv = convolve2d(img, mask_v, 'same')
+    #######
 
     angle = np.arctan2(dv, du)
     weight = np.sqrt(np.power(du, 2) + np.power(dv, 2))
@@ -534,20 +574,13 @@ def find_corners(img, tau=0.01, refine_corners=True):
 
     img = prepare_image(img)
 
+    # Use a shared variable so we aren't copying the image each time we use it
+    img_theano = theano.shared(img)
+
     height, width = img.shape
 
-    ### theano ###
-    img_t = theano.shared(img)
-    ######
 
-    du, dv, angle, weight = gradient(img, img_t)
-
-    #import scipy.io
-    #stuff = scipy.io.loadmat("img_angle.mat")
-    #du = stuff["img_du"]
-    #dv = stuff["img_dv"]
-    #angle = stuff["img_angle"]
-    #weight = stuff["img_weight"]
+    du, dv, angle, weight = gradient(img, img_theano)
 
     # scale input image
     min = np.min(img)
@@ -568,29 +601,26 @@ def find_corners(img, tau=0.01, refine_corners=True):
 
     # Filter image
     corners_img = np.zeros(img.shape)
+
     for template_params in template_props:
+
         template = c_pycb.Template(*template_params)
 
-        ### theano ###
-        stuff = np.empty((4, template.a1.shape[0], template.a1.shape[1]),dtype=template.a1.dtype)
-        stuff[0,:,:] = template.a1
-        stuff[1,:,:] = template.a2
-        stuff[2,:,:] = template.b1
-        stuff[3,:,:] = template.b2
-        ts=theano.shared(stuff)
+        # Batch filters for speed
+        filters = np.empty((4, template.a1.shape[0], template.a1.shape[1]),dtype=template.a1.dtype)
+        filters[0,:,:] = template.a1
+        filters[1,:,:] = template.a2
+        filters[2,:,:] = template.b1
+        filters[3,:,:] = template.b2
 
+        s = theano_conv2d(img_theano, filters, border_mode='full').eval()
+
+        # Take off padding
         r = template_params[2]
-        s = conv2d(img_t, ts, border_mode='full').eval()
         corners_a1 = s[0, r:height+r,r:width+r]
         corners_a2 = s[1, r:height+r,r:width+r]
         corners_b1 = s[2, r:height+r,r:width+r]
         corners_b2 = s[3, r:height+r,r:width+r]
-        ###
-
-        #corners_a1 = convolve2d(img, template.a1, 'same')
-        #corners_a2 = convolve2d(img, template.a2, 'same')
-        #corners_b1 = convolve2d(img, template.b1, 'same')
-        #corners_b2 = convolve2d(img, template.b2, 'same')
 
         # Compute mean
         corners_mu = (corners_a1 + corners_a2 + corners_b1 + corners_b2)/4
@@ -914,11 +944,20 @@ def chessboard_energy(chessboard, corners):
     # final energy
     return E_corners + num_corners*E_structure
 
+def timetest():
+    from scipy.misc import imread
+    img_big = imread('examples/scene1.jpg')
+    scale_factor = .2
+    img = imresize(img_big, scale_factor, interp='bicubic')
+
+    print "Finding corners..."
+    corners, v1, v2 = find_corners(img)
+
 def main():
     from scipy.misc import imread
     import matplotlib.cm as cm
 
-    img_big = imread('t.jpg')
+    img_big = imread('examples/scene1.jpg')
     scale_factor = .2
     img = imresize(img_big, scale_factor, interp='bicubic')
 
@@ -983,16 +1022,16 @@ def extract_chessboards(filename):
 
     return refined, chessboards
 
-def write_chessboards(filename, output_filename, board_sizes):
-
-    corners, chessboards = extract_chessboards(filename)
-
-    boards_to_write = [x if x.shape in board_sizes]
-
-    if len(boards_to_write) == 0:
-        return
-    else:
-        board = boards_to_write[0]
+#def write_chessboards(filename, output_filename, board_sizes):
+#
+#    corners, chessboards = extract_chessboards(filename)
+#
+#    boards_to_write = [x if x.shape in board_sizes]
+#
+#    if len(boards_to_write) == 0:
+#        return
+#    else:
+#        board = boards_to_write[0]
 
 
 if __name__ == "__main__":
