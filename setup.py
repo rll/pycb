@@ -5,7 +5,7 @@ import numpy
 
 ext_modules = [
     Extension(
-        "pycb.c_pycb",
+        "c_pycb",
         ["src/c_pycb.pyx"],
         language="c",
         include_dirs=[numpy.get_include()],
