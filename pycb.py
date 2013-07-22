@@ -807,20 +807,3 @@ def extract_chessboards(img, include_unrefined=False):
         return refined, chessboards, corners
     else:
         return refined, chessboards
-
-#def write_chessboards(filename, output_filename, board_sizes):
-#
-#    corners, chessboards = extract_chessboards(filename)
-#
-#    boards_to_write = [x if x.shape in board_sizes]
-#
-#    if len(boards_to_write) == 0:
-#        return
-#    else:
-#        board = boards_to_write[0]
-
-
-if __name__ == "__main__":
-
-    img, corners, refined, chessboards = main()
-    draw_boards(img, corners, refined, chessboards)
