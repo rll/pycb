@@ -951,4 +951,3 @@ if __name__ == "__main__":
     img = imread("../examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
     draw_boards(img, corners, chessboards)
-    print chessboards
