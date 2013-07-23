@@ -384,7 +384,7 @@ def gradient(img, img_theano=None):
 
     return du, dv, angle, weight
 
-def find_corners(img, tau=0.01, refine_corners=True):
+def find_corners(img, tau=0.001, refine_corners=True):
 
     img = prepare_image(img)
 
@@ -582,8 +582,8 @@ def fix_orientations(cbs, points, img):
 
 def fix_orientation(chessboard, points, img, debug=False):
 
-    corners = np.array([chessboard[0,0], 
-                        chessboard[0,-1], 
+    corners = np.array([chessboard[0,0],
+                        chessboard[0,-1],
                         chessboard[-1,0],
                         chessboard[-1,-1]])
 
@@ -869,6 +869,17 @@ def prepare_image(img):
         img = rgb2gray(img)
     return img
 
+def draw_corners(img, corners):
+    from pylab import imshow, hold, show, scatter, plot
+    import matplotlib.cm as cm
+    if len(img.shape) != 3:
+        imshow(img, cmap=cm.Greys_r)
+    else:
+        imshow(img)
+    hold(True)
+    scatter(corners[:, 0], corners[:, 1])
+    show()
+
 def draw_boards(img, corners, chessboards, old_corners=None):
     colors = ['blue', 'purple', 'red', 'orange', 'yellow', 'green']
     from pylab import imshow, hold, show, scatter, plot
@@ -919,7 +930,6 @@ def extract_chessboards(img, include_unrefined=False):
         img_scaled = img
 
     corners, v1, v2 = find_corners(img_scaled)
-
     chessboards = chessboards_from_corners(corners, v1, v2)
     chessboards = fix_orientations(chessboards, corners, img_scaled)
 
