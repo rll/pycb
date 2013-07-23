@@ -200,12 +200,13 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
         if np.linalg.matrix_rank(G) == 2:
             corner_pos_old = corners[i,:]
             corner_pos_new = np.linalg.solve(G, b).T
-            refined[i,:] = corner_pos_new
 
             # set corner to invalid, if position update is very large
             if np.linalg.norm(corner_pos_new-corner_pos_old) >= 4:
                 v1[i,:] = 0
                 v2[i,:] = 0
+            else:
+                refined[i,:] = corner_pos_new
         else:
             v1[i,:] = 0
             v2[i,:] = 0
