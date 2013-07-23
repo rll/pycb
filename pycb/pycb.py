@@ -572,6 +572,64 @@ def chessboards_from_corners(corners, v1, v2):
 
     return chessboards
 
+def fix_orientations(cbs, points, img):
+    cbs = [fix_orientation(cb, points, img) for cb in cbs]
+    return cbs
+
+def fix_orientation(chessboard, points, img):
+
+    chessboard = np.fliplr(chessboard)
+
+    corners = np.array([chessboard[0,0], 
+                        chessboard[0,-1], 
+                        chessboard[-1,0],
+                        chessboard[-1,-1]])
+
+    corner_points = points[corners]
+
+    m1 = ((corner_points[0,1] - corner_points[3,1]) / 
+          (corner_points[0,0] - corner_points[3,0]))
+    m2 = ((corner_points[2,1] - corner_points[1,1]) / 
+          (corner_points[2,0] - corner_points[1,0]))
+
+    length = np.linalg.norm(points[chessboard[0,0]] - 
+                            points[chessboard[1,1]])
+    steps = int(3*np.floor(length)/4)
+
+    dark_counts = np.zeros(4)
+
+    for step in range(steps):
+        corner_points[0] -= np.array([1/m1, 1])
+        corner_points[1] += np.array([1/m2, 1])
+        corner_points[2] -= np.array([1/m2, 1])
+        corner_points[3] += np.array([1/m1, 1])
+
+        coords = np.round(corner_points).astype(np.int)
+
+        values = img[coords[:,1], coords[:,0], :].mean(axis=1)
+
+        idx = np.argsort(values)
+
+        dark_counts[idx[:2]] += 1
+
+    idx = np.argsort(dark_counts)[::-1]
+    dark = np.sort(idx[:2])
+
+    # We know that 0 and 3 can't be the same color, and that 1 and 2 can't be
+    # the same color.
+    if (dark[0] == 0 and dark[1] == 3) or (dark[0] == 1 and dark[1] == 2):
+        print "Error finding orientation."
+        return None
+
+    if dark[0] == 0 and dark[1] == 1:
+        return np.rot90(chessboard, 2)
+    if dark[0] == 1 and dark[1] == 3:
+        return np.rot90(chessboard, 1)
+    if dark[0] == 2 and dark[1] == 3:
+        return chessboard
+    if dark[0] == 0 and dark[1] == 2:
+        return np.rot90(chessboard, 3)
+
 def grow_chessboard(chessboard, corners, border_type):
 
     # return immediately, if there do not exist any chessboards
@@ -750,7 +808,7 @@ def chessboard_energy(chessboard, corners):
     # walk through columns
     for j in range(chessboard.shape[1]):
         for k in range(chessboard.shape[0]-2):
-            x = corners[chessboard[k:k+3,j],:];
+            x = corners[chessboard[k:k+3,j],:]
             e_s = np.sqrt(np.sum((x[0,:]+x[2,:]-2*x[1,:])**2,axis=-1)) / np.sqrt(np.sum((x[0,:]-x[2,:])**2,axis=-1))
             E_structure = max(E_structure, e_s)
 
@@ -767,7 +825,8 @@ def prepare_image(img):
     return img
 
 def draw_boards(img, corners, chessboards, old_corners=None):
-    from pylab import imshow, hold, show, scatter
+    colors = ['blue', 'purple', 'red', 'orange', 'yellow', 'green']
+    from pylab import imshow, hold, show, scatter, plot
     import matplotlib.cm as cm
     if len(img.shape) != 3:
         imshow(img, cmap=cm.Greys_r)
@@ -775,11 +834,29 @@ def draw_boards(img, corners, chessboards, old_corners=None):
         imshow(img)
     hold(True)
     for board in chessboards:
-        rs = corners[board.flatten()]
-        scatter(rs[:, 0], rs[:, 1], color='green')
         if old_corners is not None:
             cs = old_corners[board.flatten()]
             scatter(cs[:, 0], cs[:, 1], color='red')
+        rs = corners[board.flatten()]
+        scatter(rs[:, 0], rs[:, 1], color='green')
+        color_idx = 0
+        for i in range(board.shape[0]):
+            row = board[i]
+            indices = [0, -1]
+            color = colors[color_idx % len(colors)]
+            color_idx += 1
+            if i == 0:
+                linewidth = 3
+                color = 'chartreuse'
+            else:
+                linewidth = 2
+            plot(corners[row[indices], 0], 
+                 corners[row[indices], 1], 
+                 color=color, linewidth=linewidth)
+            if i > 0:
+                plot([corners[board[i-1, 0], 0], corners[board[i, -1], 0]], 
+                     [corners[board[i-1, 0], 1], corners[board[i, -1], 1]], 
+                     color=color, linewidth=2)
     show()
 
 def extract_chessboards(img, include_unrefined=False):
@@ -796,14 +873,12 @@ def extract_chessboards(img, include_unrefined=False):
     else:
         img_scaled = img
 
-    print "Finding corners..."
     corners, v1, v2 = find_corners(img_scaled)
 
-    print "Getting board..."
     chessboards = chessboards_from_corners(corners, v1, v2)
+    chessboards = fix_orientations(chessboards, corners, img_scaled)
 
     if scale_factor < 1:
-        print "Refining corners..."
         corners = np.round(corners * (1.0/scale_factor)).astype(np.int)
         img = prepare_image(img)
         du, dv, angle, weight = gradient(img)
@@ -831,6 +906,7 @@ def extract_chessboards(img, include_unrefined=False):
 if __name__ == "__main__":
 
     from scipy.misc import imread
-    img = imread("../examples/scene1.jpg")
+    img = imread("../examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
+    draw_boards(img, corners, chessboards)
     print chessboards
