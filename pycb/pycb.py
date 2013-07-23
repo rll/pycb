@@ -117,13 +117,16 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
     v1 = np.zeros((corners.shape[0], 2))
     v2 = np.zeros((corners.shape[0], 2))
 
-    refined = np.copy(corners)
+    refined = np.zeros(corners.shape, dtype=np.float)
 
     for i in range(corners.shape[0]):
 
+        corner_pos_old = corners[i,:]
+        refined[i,:] = corner_pos_old
+
         #print "on corner %d of %d" % (i, corners.shape[0])
-        cu = corners[i, 0]
-        cv = corners[i, 1]
+        cu = corner_pos_old[0]
+        cv = corner_pos_old[1]
 
         # estimate edge orientations
         subwindow_v = slice(max(cv-r, 0), min(cv+r+1, height))
@@ -198,7 +201,6 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
 
         # set new corner location if G has full rank
         if np.linalg.matrix_rank(G) == 2:
-            corner_pos_old = corners[i,:]
             corner_pos_new = np.linalg.solve(G, b).T
 
             # set corner to invalid, if position update is very large
