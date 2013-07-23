@@ -4,7 +4,8 @@ from numpy import pi
 from scipy.misc import imresize
 
 import theano
-from theano.tensor.signal.conv import conv2d as theano_conv2d
+#from theano.tensor.signal.conv import conv2d as theano_conv2d
+#from scipy.signal import convolve2d
 
 import c_pycb
 
@@ -277,14 +278,6 @@ def score_corners(img,img_angle,img_weight,corners,v1,v2,radius):
 
     return scores
 
-def ccs():
-    import theano.tensor as T
-    img = T.matrix('img')
-    img_weight = T.matrix('img_weight')
-    v1 = T.vector('v1')
-    v2 = T.vector('v2')
-    img_filter = T.matrix('img_filter')
-
 def corner_correlation_score(img, img_weight, v1, v2):
 
     # center
@@ -354,28 +347,30 @@ def gradient(img, img_theano=None):
 
     height, width = img.shape
 
-    if img_theano is None:
-        img_theano = theano.shared(img)
+    #if img_theano is None:
+    #    img_theano = theano.shared(img)
 
     # compute image derivatives (for principal axes estimation)
 
     # sobel masks
-    mask_u = np.array([[-1, 0, 1],
-                       [-1, 0, 1],
-                       [-1, 0, 1]], dtype=np.float)
-    mask_v = mask_u.T
+    #mask_u = np.array([[-1, 0, 1],
+    #                   [-1, 0, 1],
+    #                   [-1, 0, 1]], dtype=np.float)
+    #mask_v = mask_u.T
 
-    # batch masks for speed
-    masks = np.empty((2, mask_u.shape[0], mask_u.shape[1]),dtype=mask_u.dtype)
-    masks[0,:,:] = mask_u
-    masks[1,:,:] = mask_v
+    ## batch masks for speed
+    #masks = np.empty((2, mask_u.shape[0], mask_u.shape[1]),dtype=mask_u.dtype)
+    #masks[0,:,:] = mask_u
+    #masks[1,:,:] = mask_v
 
-    ds = theano_conv2d(img_theano, masks, border_mode='full').eval()
+    #ds = theano_conv2d(img, masks, border_mode='full').eval()
 
-    # Strip off padding
-    offset = (mask_u.shape[0]-1)/2
-    du = ds[0, offset:height+offset, offset:width+offset]
-    dv = ds[1, offset:height+offset, offset:width+offset]
+    ## Strip off padding
+    #offset = (mask_u.shape[0]-1)/2
+    #du_2 = ds[0, offset:height+offset, offset:width+offset]
+    #dv_2 = ds[1, offset:height+offset, offset:width+offset]
+
+    du, dv = c_pycb.sobel(img)
 
     angle = np.arctan2(dv, du)
     weight = np.sqrt(np.power(du, 2) + np.power(dv, 2))
@@ -391,12 +386,11 @@ def find_corners(img, tau=0.01, refine_corners=True):
     img = prepare_image(img)
 
     # Use a shared variable so we aren't copying the image each time we use it
-    img_theano = theano.shared(img)
+    #img_theano = theano.shared(img)
 
     height, width = img.shape
 
-
-    du, dv, angle, weight = gradient(img, img_theano)
+    du, dv, angle, weight = gradient(img)#, img_theano)
 
     # scale input image
     min = np.min(img)
@@ -422,21 +416,35 @@ def find_corners(img, tau=0.01, refine_corners=True):
 
         template = c_pycb.Template(*template_params)
 
-        # Batch filters for speed
-        filters = np.empty((4, template.a1.shape[0], template.a1.shape[1]),dtype=template.a1.dtype)
-        filters[0,:,:] = template.a1
-        filters[1,:,:] = template.a2
-        filters[2,:,:] = template.b1
-        filters[3,:,:] = template.b2
+        ## Batch filters for speed
+        #filters = np.empty((4, template.a1.shape[0], template.a1.shape[1]),dtype=template.a1.dtype)
+        #filters[0,:,:] = template.a1
+        #filters[1,:,:] = template.a2
+        #filters[2,:,:] = template.b1
+        #filters[3,:,:] = template.b2
 
-        s = theano_conv2d(img_theano, filters, border_mode='full').eval()
+        #s = theano_conv2d(img_theano, filters, border_mode='full').eval()
 
-        # Take off padding
-        r = template_params[2]
-        corners_a1 = s[0, r:height+r,r:width+r]
-        corners_a2 = s[1, r:height+r,r:width+r]
-        corners_b1 = s[2, r:height+r,r:width+r]
-        corners_b2 = s[3, r:height+r,r:width+r]
+        ## Take off padding
+        #r = template_params[2]
+        #corners_a1_2 = s[0, r:height+r,r:width+r]
+        #corners_a2_2 = s[1, r:height+r,r:width+r]
+        #corners_b1_2 = s[2, r:height+r,r:width+r]
+        #corners_b2_2 = s[3, r:height+r,r:width+r]
+
+        #template = c_pycb.Template(*template_params)
+        corners_a1, corners_a2, corners_b1, corners_b2 = c_pycb.conv_template(img, template.a1, template.a2, template.b1, template.b2)
+        #corners_a1 = c_pycb.conv2(img, template.a1)
+        #corners_a2 = c_pycb.conv2(img, template.a2)
+        #corners_b1 = c_pycb.conv2(img, template.b1)
+        #corners_b2 = c_pycb.conv2(img, template.b2)
+        #corners_a1_3 = convolve2d(img, template.a1, mode='same')
+        #import pdb; pdb.set_trace()
+        #print corners_a1, corners_a2, corners_b1, corners_b2
+        #corners_a1 = convolve2d(img, template.a1, mode='same')
+        #corners_a2 = convolve2d(img, template.a2, mode='same')
+        #corners_b1 = convolve2d(img, template.b1, mode='same')
+        #corners_b2 = convolve2d(img, template.b2, mode='same')
 
         # Compute mean
         corners_mu = (corners_a1 + corners_a2 + corners_b1 + corners_b2)/4
@@ -822,5 +830,7 @@ def extract_chessboards(img, include_unrefined=False):
 
 if __name__ == "__main__":
 
-    img, corners, refined, chessboards = main()
-    draw_boards(img, corners, refined, chessboards)
+    from scipy.misc import imread
+    img = imread("../examples/scene1.jpg")
+    corners, chessboards = extract_chessboards(img)
+    print chessboards

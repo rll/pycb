@@ -207,3 +207,137 @@ cdef class Template(object):
         self.a2 = a2
         self.b1 = b1
         self.b2 = b2
+
+def conv2(np.ndarray[np.float_t, ndim=2] f, np.ndarray[np.float_t, ndim=2] g):
+
+    if g.shape[0] % 2 != 1 or g.shape[1] % 2 != 1:
+        raise ValueError("Only odd dimensions on filter supported")
+
+    assert f.dtype == np.float and g.dtype == np.float
+
+    cdef int vmax = f.shape[0]
+    cdef int wmax = f.shape[1]
+    cdef int smax = g.shape[0]
+    cdef int tmax = g.shape[1]
+    cdef int smid = smax // 2
+    cdef int tmid = tmax // 2
+    cdef int xmax = vmax + 2*smid
+    cdef int ymax = wmax + 2*tmid
+    cdef np.ndarray[np.float_t, ndim=2] h = np.empty([xmax, ymax], dtype=np.float)
+    cdef int x, y, s, t, v, w
+
+    cdef int s_from, s_to, t_from, t_to
+
+    cdef double value
+
+    for x in range(xmax):
+        for y in range(ymax):
+            s_from = int_max(smid - x, -smid)
+            s_to = int_min((xmax - x) - smid, smid + 1)
+            t_from = int_max(tmid - y, -tmid)
+            t_to = int_min((ymax - y) - tmid, tmid + 1)
+            value = 0
+            for s in range(s_from, s_to):
+                for t in range(t_from, t_to):
+                    v = x - smid + s
+                    w = y - tmid + t
+                    value += g[smid - s, tmid - t] * f[v, w]
+            h[x, y] = value
+    return h[smid:-smid, tmid:-tmid]
+
+def conv_template(np.ndarray[np.float_t, ndim=2] f, 
+                  np.ndarray[np.float_t, ndim=2] t_a1,
+                  np.ndarray[np.float_t, ndim=2] t_a2,
+                  np.ndarray[np.float_t, ndim=2] t_b1,
+                  np.ndarray[np.float_t, ndim=2] t_b2):
+
+    cdef int vmax = f.shape[0]
+    cdef int wmax = f.shape[1]
+    cdef int smax = t_a1.shape[0]
+    cdef int tmax = t_a1.shape[1]
+    cdef int smid = smax // 2
+    cdef int tmid = tmax // 2
+    cdef int xmax = vmax + 2*smid
+    cdef int ymax = wmax + 2*tmid
+    cdef np.ndarray[np.float_t, ndim=2] corners_a1 = np.zeros([xmax, ymax], dtype=np.float)
+    cdef np.ndarray[np.float_t, ndim=2] corners_a2 = np.zeros([xmax, ymax], dtype=np.float)
+    cdef np.ndarray[np.float_t, ndim=2] corners_b1 = np.zeros([xmax, ymax], dtype=np.float)
+    cdef np.ndarray[np.float_t, ndim=2] corners_b2 = np.zeros([xmax, ymax], dtype=np.float)
+    cdef int x, y, s, t, v, w
+
+    cdef int s_from, s_to, t_from, t_to
+
+    cdef double a1, a2, b1, b2
+    cdef double fval
+
+    for x in range(xmax):
+        for y in range(ymax):
+            s_from = int_max(smid - x, -smid)
+            s_to = int_min((xmax - x) - smid, smid + 1)
+            t_from = int_max(tmid - y, -tmid)
+            t_to = int_min((ymax - y) - tmid, tmid + 1)
+            a1 = 0
+            a2 = 0
+            b1 = 0
+            b2 = 0
+            for s in range(s_from, s_to):
+                for t in range(t_from, t_to):
+                    v = x - smid + s
+                    w = y - tmid + t
+                    fval = f[v, w]
+                    a1 += t_a1[smid - s, tmid - t] * fval
+                    a2 += t_a2[smid - s, tmid - t] * fval
+                    b1 += t_b1[smid - s, tmid - t] * fval
+                    b2 += t_b2[smid - s, tmid - t] * fval
+            corners_a1[x, y] = a1
+            corners_a2[x, y] = a2
+            corners_b1[x, y] = b1
+            corners_b2[x, y] = b2
+    return (corners_a1[smid:-smid, tmid:-tmid], 
+            corners_a2[smid:-smid, tmid:-tmid],
+            corners_b1[smid:-smid, tmid:-tmid],
+            corners_b2[smid:-smid, tmid:-tmid])
+
+def sobel(np.ndarray[np.float_t, ndim=2] f):
+
+    cdef np.ndarray[np.float_t, ndim=2] mask_u = np.array([[-1, 0, 1],
+                                                           [-1, 0, 1],
+                                                           [-1, 0, 1]], 
+                                                           dtype=np.float)
+    cdef np.ndarray[np.float_t, ndim=2] mask_v = mask_u.T
+
+    assert f.dtype == np.float
+
+    cdef int vmax = f.shape[0]
+    cdef int wmax = f.shape[1]
+    cdef int smax = mask_u.shape[0]
+    cdef int tmax = mask_u.shape[1]
+    cdef int smid = smax // 2
+    cdef int tmid = tmax // 2
+    cdef int xmax = vmax + 2*smid
+    cdef int ymax = wmax + 2*tmid
+    cdef np.ndarray[np.float_t, ndim=2] img_du = np.empty([xmax, ymax], dtype=np.float)
+    cdef np.ndarray[np.float_t, ndim=2] img_dv = np.empty([xmax, ymax], dtype=np.float)
+    cdef int x, y, s, t, v, w
+
+    cdef int s_from, s_to, t_from, t_to
+
+    cdef double du, dv
+
+    for x in range(xmax):
+        for y in range(ymax):
+            s_from = int_max(smid - x, -smid)
+            s_to = int_min((xmax - x) - smid, smid + 1)
+            t_from = int_max(tmid - y, -tmid)
+            t_to = int_min((ymax - y) - tmid, tmid + 1)
+            du = 0
+            dv = 0
+            for s in range(s_from, s_to):
+                for t in range(t_from, t_to):
+                    v = x - smid + s
+                    w = y - tmid + t
+                    du += mask_u[smid - s, tmid - t] * f[v, w]
+                    dv += mask_v[smid - s, tmid - t] * f[v, w]
+            img_du[x, y] = du
+            img_dv[x, y] = dv
+    return img_du[1:-1, 1:-1], img_dv[1:-1, 1:-1]
