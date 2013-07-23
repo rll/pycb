@@ -574,46 +574,88 @@ def chessboards_from_corners(corners, v1, v2):
 
 def fix_orientations(cbs, points, img):
     cbs = [fix_orientation(cb, points, img) for cb in cbs]
+    cbs = [np.fliplr(cb) for cb in cbs if cb is not None]
     return cbs
 
-def fix_orientation(chessboard, points, img):
-
-    chessboard = np.fliplr(chessboard)
+def fix_orientation(chessboard, points, img, debug=False):
 
     corners = np.array([chessboard[0,0], 
                         chessboard[0,-1], 
                         chessboard[-1,0],
                         chessboard[-1,-1]])
 
+    if chessboard.shape[0] < chessboard.shape[1]:
+        opposing_corners = np.array([chessboard[-1, -2],
+                                     chessboard[-1, 1],
+                                     chessboard[0, -2],
+                                     chessboard[0, 1]])
+    else:
+        opposing_corners = np.array([chessboard[-2, -1],
+                                     chessboard[-2, 0],
+                                     chessboard[1, -1],
+                                     chessboard[1, 0]])
+
     corner_points = points[corners]
+    opposing_corner_points = points[opposing_corners]
 
-    m1 = ((corner_points[0,1] - corner_points[3,1]) / 
-          (corner_points[0,0] - corner_points[3,0]))
-    m2 = ((corner_points[2,1] - corner_points[1,1]) / 
-          (corner_points[2,0] - corner_points[1,0]))
+    max_squares = min(chessboard.shape)
+    steps = 20
 
-    length = np.linalg.norm(points[chessboard[0,0]] - 
-                            points[chessboard[1,1]])
-    steps = int(3*np.floor(length)/4)
+    differences = opposing_corner_points - corner_points
+    distances = np.sqrt(np.sum(differences**2, axis=-1))
+    differences = differences / distances[:, np.newaxis]
+
+    # Look at 2 squares
+    deltas = (2.0/max_squares) * distances / steps
+    deltas = deltas[:, np.newaxis]
+
+    if debug:
+        from pylab import imshow, plot, scatter, show, hold
+        import matplotlib.cm as cm
+        imshow(img, cmap=cm.Greys_r)
+        hold(True)
+        scatter(corner_points[0, 0], corner_points[0, 1], color='green')
+        scatter(corner_points[1, 0], corner_points[1, 1], color='blue')
+        scatter(corner_points[2, 0], corner_points[2, 1], color='purple')
+        scatter(corner_points[3, 0], corner_points[3, 1], color='orange')
+        plot([corner_points[0, 0], opposing_corner_points[0, 0]], 
+             [corner_points[0, 1], opposing_corner_points[0, 1]], color='green')
+        plot([corner_points[1, 0], opposing_corner_points[1, 0]], 
+             [corner_points[1, 1], opposing_corner_points[1, 1]], color='blue')
+        plot([corner_points[2, 0], opposing_corner_points[2, 0]], 
+             [corner_points[2, 1], opposing_corner_points[2, 1]], color='purple')
+        plot([corner_points[3, 0], opposing_corner_points[3, 0]], 
+             [corner_points[3, 1], opposing_corner_points[3, 1]], color='orange')
+        show()
 
     dark_counts = np.zeros(4)
 
     for step in range(steps):
-        corner_points[0] -= np.array([1/m1, 1])
-        corner_points[1] += np.array([1/m2, 1])
-        corner_points[2] -= np.array([1/m2, 1])
-        corner_points[3] += np.array([1/m1, 1])
 
-        coords = np.round(corner_points).astype(np.int)
+        current_points = corner_points + (step + 1) * deltas * differences
+
+        coords = np.round(current_points).astype(np.int)
 
         values = img[coords[:,1], coords[:,0], :].mean(axis=1)
 
         idx = np.argsort(values)
-
         dark_counts[idx[:2]] += 1
+
+        if debug:
+            print idx
+            print dark_counts
+            imshow(img, cmap=cm.Greys_r)
+            hold(True)
+            scatter(coords[:, 0], coords[:, 1])
+            show()
 
     idx = np.argsort(dark_counts)[::-1]
     dark = np.sort(idx[:2])
+
+    if debug:
+        print "After loop"
+        print idx
+        print dark
 
     # We know that 0 and 3 can't be the same color, and that 1 and 2 can't be
     # the same color.
@@ -624,11 +666,11 @@ def fix_orientation(chessboard, points, img):
     if dark[0] == 0 and dark[1] == 1:
         return np.rot90(chessboard, 2)
     if dark[0] == 1 and dark[1] == 3:
-        return np.rot90(chessboard, 1)
+        return np.rot90(chessboard, 3)
     if dark[0] == 2 and dark[1] == 3:
         return chessboard
     if dark[0] == 0 and dark[1] == 2:
-        return np.rot90(chessboard, 3)
+        return np.rot90(chessboard, 1)
 
 def grow_chessboard(chessboard, corners, border_type):
 
