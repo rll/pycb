@@ -117,7 +117,7 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
     v1 = np.zeros((corners.shape[0], 2))
     v2 = np.zeros((corners.shape[0], 2))
 
-    refined = np.zeros(corners.shape, dtype=np.float)
+    refined = np.copy(corners)
 
     for i in range(corners.shape[0]):
 
