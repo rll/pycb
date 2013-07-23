@@ -878,11 +878,13 @@ def draw_corners(img, corners):
         imshow(img)
     hold(True)
     scatter(corners[:, 0], corners[:, 1])
+    xlim(corners[:,0].min()*.9, corners[:, 0].max()*1.1)
+    ylim(corners[:,1].min()*.9, corners[:, 1].max()*1.1)
     show()
 
 def draw_boards(img, corners, chessboards, old_corners=None):
     colors = ['blue', 'purple', 'red', 'orange', 'yellow', 'green']
-    from pylab import imshow, hold, show, scatter, plot
+    from pylab import imshow, hold, show, scatter, plot, xlim, ylim
     import matplotlib.cm as cm
     if len(img.shape) != 3:
         imshow(img, cmap=cm.Greys_r)
@@ -895,6 +897,8 @@ def draw_boards(img, corners, chessboards, old_corners=None):
             scatter(cs[:, 0], cs[:, 1], color='red')
         rs = corners[board.flatten()]
         scatter(rs[:, 0], rs[:, 1], color='green')
+        xlim(rs[:,0].min()*.9, rs[:, 0].max()*1.1)
+        ylim(rs[:,1].min()*.9, rs[:, 1].max()*1.1)
         color_idx = 0
         for i in range(board.shape[0]):
             row = board[i]
