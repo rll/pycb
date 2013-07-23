@@ -577,6 +577,7 @@ def chessboards_from_corners(corners, v1, v2):
 
 def fix_orientations(cbs, points, img):
     cbs = [fix_orientation(cb, points, img) for cb in cbs]
+    cbs = [cb for cb in cbs if cb is not None]
     return cbs
 
 def fix_orientation(chessboard, points, img, debug=False):
@@ -964,7 +965,7 @@ def extract_chessboards(img, include_unrefined=False):
 if __name__ == "__main__":
 
     from scipy.misc import imread
-    img = imread("../examples/scene1.jpg")
+    img = imread("../examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
     draw_boards(img, corners, chessboards)
     print chessboards
