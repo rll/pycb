@@ -870,7 +870,7 @@ def prepare_image(img):
     return img
 
 def draw_corners(img, corners):
-    from pylab import imshow, hold, show, scatter, plot
+    from pylab import imshow, hold, show, scatter, plot, xlim, ylim
     import matplotlib.cm as cm
     if len(img.shape) != 3:
         imshow(img, cmap=cm.Greys_r)
