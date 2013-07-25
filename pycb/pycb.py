@@ -879,7 +879,7 @@ def draw_corners(img, corners):
     hold(True)
     scatter(corners[:, 0], corners[:, 1])
     xlim(corners[:,0].min()*.9, corners[:, 0].max()*1.1)
-    ylim(corners[:,1].min()*.9, corners[:, 1].max()*1.1)
+    ylim(corners[:,1].max()*1.1, corners[:, 1].min()*0.9)
     show()
 
 def draw_boards(img, corners, chessboards, old_corners=None):
@@ -898,7 +898,7 @@ def draw_boards(img, corners, chessboards, old_corners=None):
         rs = corners[board.flatten()]
         scatter(rs[:, 0], rs[:, 1], color='green')
         xlim(rs[:,0].min()*.9, rs[:, 0].max()*1.1)
-        ylim(rs[:,1].min()*.9, rs[:, 1].max()*1.1)
+        ylim(rs[:,1].max()*1.1, rs[:, 1].min()*0.9)
         color_idx = 0
         for i in range(board.shape[0]):
             row = board[i]
