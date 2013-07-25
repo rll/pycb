@@ -482,6 +482,9 @@ def find_corners(img, tau=0.001, refine_corners=True):
     v1 = np.delete(v1, idx, 0)
     v2 = np.delete(v2, idx, 0)
 
+    if len(corners) == 0:
+        return corners, v1, v2
+
     #% score corners
     scores = score_corners(img,angle,weight,corners,v1,v2,radius)
 
