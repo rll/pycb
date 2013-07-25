@@ -121,9 +121,12 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
 
     for i in range(corners.shape[0]):
 
+        corner_pos_old = corners[i,:]
+        refined[i,:] = corner_pos_old
+
         #print "on corner %d of %d" % (i, corners.shape[0])
-        cu = corners[i, 0]
-        cv = corners[i, 1]
+        cu = corner_pos_old[0]
+        cv = corner_pos_old[1]
 
         # estimate edge orientations
         subwindow_v = slice(max(cv-r, 0), min(cv+r+1, height))
@@ -198,14 +201,14 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
 
         # set new corner location if G has full rank
         if np.linalg.matrix_rank(G) == 2:
-            corner_pos_old = corners[i,:]
             corner_pos_new = np.linalg.solve(G, b).T
-            refined[i,:] = corner_pos_new
 
             # set corner to invalid, if position update is very large
             if np.linalg.norm(corner_pos_new-corner_pos_old) >= 4:
                 v1[i,:] = 0
                 v2[i,:] = 0
+            else:
+                refined[i,:] = corner_pos_new
         else:
             v1[i,:] = 0
             v2[i,:] = 0
@@ -381,7 +384,7 @@ def gradient(img, img_theano=None):
 
     return du, dv, angle, weight
 
-def find_corners(img, tau=0.01, refine_corners=True):
+def find_corners(img, tau=0.001, refine_corners=True):
 
     img = prepare_image(img)
 
@@ -574,13 +577,13 @@ def chessboards_from_corners(corners, v1, v2):
 
 def fix_orientations(cbs, points, img):
     cbs = [fix_orientation(cb, points, img) for cb in cbs]
-    cbs = [np.fliplr(cb) for cb in cbs if cb is not None]
+    cbs = [cb for cb in cbs if cb is not None]
     return cbs
 
 def fix_orientation(chessboard, points, img, debug=False):
 
-    corners = np.array([chessboard[0,0], 
-                        chessboard[0,-1], 
+    corners = np.array([chessboard[0,0],
+                        chessboard[0,-1],
                         chessboard[-1,0],
                         chessboard[-1,-1]])
 
@@ -866,9 +869,22 @@ def prepare_image(img):
         img = rgb2gray(img)
     return img
 
+def draw_corners(img, corners):
+    from pylab import imshow, hold, show, scatter, plot
+    import matplotlib.cm as cm
+    if len(img.shape) != 3:
+        imshow(img, cmap=cm.Greys_r)
+    else:
+        imshow(img)
+    hold(True)
+    scatter(corners[:, 0], corners[:, 1])
+    xlim(corners[:,0].min()*.9, corners[:, 0].max()*1.1)
+    ylim(corners[:,1].min()*.9, corners[:, 1].max()*1.1)
+    show()
+
 def draw_boards(img, corners, chessboards, old_corners=None):
     colors = ['blue', 'purple', 'red', 'orange', 'yellow', 'green']
-    from pylab import imshow, hold, show, scatter, plot
+    from pylab import imshow, hold, show, scatter, plot, xlim, ylim
     import matplotlib.cm as cm
     if len(img.shape) != 3:
         imshow(img, cmap=cm.Greys_r)
@@ -881,6 +897,8 @@ def draw_boards(img, corners, chessboards, old_corners=None):
             scatter(cs[:, 0], cs[:, 1], color='red')
         rs = corners[board.flatten()]
         scatter(rs[:, 0], rs[:, 1], color='green')
+        xlim(rs[:,0].min()*.9, rs[:, 0].max()*1.1)
+        ylim(rs[:,1].min()*.9, rs[:, 1].max()*1.1)
         color_idx = 0
         for i in range(board.shape[0]):
             row = board[i]
@@ -916,7 +934,6 @@ def extract_chessboards(img, include_unrefined=False):
         img_scaled = img
 
     corners, v1, v2 = find_corners(img_scaled)
-
     chessboards = chessboards_from_corners(corners, v1, v2)
     chessboards = fix_orientations(chessboards, corners, img_scaled)
 
