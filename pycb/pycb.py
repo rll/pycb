@@ -473,6 +473,9 @@ def find_corners(img, tau=0.001, refine_corners=True):
     if refine_corners:
         corners, v1, v2 = do_refine_corners(du,dv,angle,weight,corners,10)
 
+    if len(corners) == 0:
+        return corners, v1, v2
+
     # remove corners without edges
     idx = np.where((v1[:,0]==0) & (v1[:,1]==0))[0]
     corners = np.delete(corners, idx, 0)
