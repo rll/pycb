@@ -496,8 +496,9 @@ def find_corners(img, tau=0.001, refine_corners=True):
     scores = np.delete(scores, idx, 0)
 
     # make v1(:,1)+v1(:,2) positive (=> comparable to c++ code)
-    idx = np.where((v1[:,0]+v1[:,1])<0)
-    v1[idx,:] = -v1[idx,:]
+    idx = np.where((v1[:,0]+v1[:,1])<0)[0]
+    if len(idx) > 0:
+        v1[idx,:] = -v1[idx,:]
 
     # make all coordinate systems right-handed (reduces matching ambiguities from 8 to 4)
     corners_n1 = np.column_stack([v1[:,1], -v1[:,0]])
@@ -971,6 +972,6 @@ def extract_chessboards(img, include_unrefined=False):
 if __name__ == "__main__":
 
     from scipy.misc import imread
-    img = imread("../examples/scene2.jpg")
+    img = imread("examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
     draw_boards(img, corners, chessboards)
