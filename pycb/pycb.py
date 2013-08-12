@@ -384,7 +384,7 @@ def gradient(img, img_theano=None):
 
     return du, dv, angle, weight
 
-def find_corners(img, tau=0.001, refine_corners=True):
+def find_corners(img, tau=0.001, refine_corners=True, use_corner_thresholding=True):
 
     img = prepare_image(img)
 
@@ -485,15 +485,16 @@ def find_corners(img, tau=0.001, refine_corners=True):
     if len(corners) == 0:
         return corners, v1, v2
 
-    #% score corners
-    scores = score_corners(img,angle,weight,corners,v1,v2,radius)
+    if use_corner_thresholding:
+        #% score corners
+        scores = score_corners(img,angle,weight,corners,v1,v2,radius)
 
-    # remove low scoring corners
-    idx = np.where(scores<tau)
-    corners = np.delete(corners, idx, 0)
-    v1 = np.delete(v1, idx, 0)
-    v2 = np.delete(v2, idx, 0)
-    scores = np.delete(scores, idx, 0)
+        # remove low scoring corners
+        idx = np.where(scores<tau)
+        corners = np.delete(corners, idx, 0)
+        v1 = np.delete(v1, idx, 0)
+        v2 = np.delete(v2, idx, 0)
+        scores = np.delete(scores, idx, 0)
 
     # make v1(:,1)+v1(:,2) positive (=> comparable to c++ code)
     idx = np.where((v1[:,0]+v1[:,1])<0)[0]
@@ -646,7 +647,10 @@ def fix_orientation(chessboard, points, img, debug=False):
 
         coords = np.round(current_points).astype(np.int)
 
-        values = img[coords[:,1], coords[:,0], :].mean(axis=1)
+        if len(img.shape) == 3:
+            values = img[coords[:,1], coords[:,0], :].mean(axis=1)
+        else:
+            values = img[coords[:,1], coords[:,0]]
 
         idx = np.argsort(values)
         dark_counts[idx[:2]] += 1
@@ -926,7 +930,7 @@ def draw_boards(img, corners, chessboards, old_corners=None):
                      color=color, linewidth=2)
     show()
 
-def extract_chessboards(img, include_unrefined=False):
+def extract_chessboards(img, include_unrefined=False, use_corner_thresholding=True):
 
     if img.shape[1] > 4000:
         scale_factor = .2
@@ -940,7 +944,7 @@ def extract_chessboards(img, include_unrefined=False):
     else:
         img_scaled = img
 
-    corners, v1, v2 = find_corners(img_scaled)
+    corners, v1, v2 = find_corners(img_scaled, use_corner_thresholding=use_corner_thresholding)
     chessboards = chessboards_from_corners(corners, v1, v2)
     chessboards = fix_orientations(chessboards, corners, img_scaled)
 
