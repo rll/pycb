@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import scipy as sp
 from numpy import pi
@@ -961,21 +962,56 @@ def extract_chessboards(img, include_unrefined=False, use_corner_thresholding=Tr
     else:
         return refined, chessboards
 
-#def write_chessboards(filename, output_filename, board_sizes):
-#
-#    corners, chessboards = extract_chessboards(filename)
-#
-#    boards_to_write = [x if x.shape in board_sizes]
-#
-#    if len(boards_to_write) == 0:
-#        return
-#    else:
-#        board = boards_to_write[0]
+def detect_and_save_chessboard(filename, allowed_board_sizes, verbose=True):
+    try:
+        img = imread(filename)
+    except:
+        print "Couldn't load file %s" % filename
+        return
+    if len(img.shape) == 0:
+        print "Couldn't load file %s" % filename
+        return
+    try:
+        corners, chessboards = pycb.extract_chessboards(img, use_corner_thresholding=False)
+    except Exception as e:
+        print "Exception on file", filename
+        raise e
 
+    output_filename = os.path.splitext(filename)[0] + "_corners.txt"
+    save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, verbose)
+
+def save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, verbose=True):
+    if len(chessboards) == 0:
+        if verbose:
+            print "WARNING: no boards found. Nothing written to %s" % (filename)
+        return
+    board = None
+    for board_size in allowed_board_sizes:
+        boards = [x for x in chessboards if x.shape == board_size] 
+        if len(boards) != 0:
+            board = boards[0]
+            break
+    if board is None:
+        if verbose:
+            print "WARNING: couldn't find board with right size. Nothing written to file %s. Had " \
+                "board with size (%d, %d)" % (filename, 
+                                              chessboards[0].shape[0], 
+                                              chessboards[0].shape[1])
+        return
+    else:
+        if verbose:
+            print "Found board. Written to file %s" % filename
+
+    board_points = corners[board.flatten()]
+
+    file = open(output_filename, 'w')
+    for point in board_points:
+        file.write("%f, %f\n" % (point[0], point[1]))
+    file.close()
 
 if __name__ == "__main__":
 
     from scipy.misc import imread
-    img = imread("examples/scene2.jpg")
+    img = imread("../examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
-    draw_boards(img, corners, chessboards)
+    #draw_boards(img, corners, chessboards)

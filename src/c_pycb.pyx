@@ -245,11 +245,11 @@ def conv2(np.ndarray[np.float_t, ndim=2] f, np.ndarray[np.float_t, ndim=2] g):
             h[x, y] = value
     return h[smid:-smid, tmid:-tmid]
 
-def conv_template(np.ndarray[np.float_t, ndim=2] f, 
-                  np.ndarray[np.float_t, ndim=2] t_a1,
-                  np.ndarray[np.float_t, ndim=2] t_a2,
-                  np.ndarray[np.float_t, ndim=2] t_b1,
-                  np.ndarray[np.float_t, ndim=2] t_b2):
+cpdef conv_template(np.float_t[:,:] f, 
+                    np.float_t[:,:] t_a1,
+                    np.float_t[:,:] t_a2,
+                    np.float_t[:,:] t_b1,
+                    np.float_t[:,:] t_b2):
 
     cdef int vmax = f.shape[0]
     cdef int wmax = f.shape[1]
