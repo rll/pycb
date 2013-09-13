@@ -990,6 +990,15 @@ def save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, 
         file.write("%f, %f\n" % (point[0], point[1]))
     file.close()
 
+def get_3d_chessboard_points(square_x, square_y, square_size):
+    board_points = np.zeros((square_size*square_y, 3))
+    for y in range(square_y):
+        for x in range(square_x):
+            board_points[y*square_x + x, 0] = x * square_size
+            board_points[y*square_x + x, 1] = y * square_size
+            board_points[y*square_x + x, 2] = 0
+    return board_points
+
 if __name__ == "__main__":
 
     from scipy.misc import imread
