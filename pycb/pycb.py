@@ -990,6 +990,14 @@ def save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, 
         file.write("%f, %f\n" % (point[0], point[1]))
     file.close()
 
+def read_chessboard(filename, board_size):
+    chessboard = np.empty((board_size[0]*board_size[1], 2))
+    with open(filename) as f:
+        for i in range(chessboard.shape[0]):
+            point = [float(x.strip()) for x in file.readline().split(",")]
+            chessboard[i, :] = point
+    return chessboard
+
 def get_3d_chessboard_points(square_x, square_y, square_size):
     board_points = np.zeros((square_size*square_y, 3))
     for y in range(square_y):
