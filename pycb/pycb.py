@@ -585,7 +585,7 @@ def chessboards_from_corners(corners, v1, v2):
 
 def fix_orientations(cbs, points, img):
     cbs = [fix_orientation(cb, points, img) for cb in cbs]
-    cbs = [cb for cb in cbs if cb is not None]
+    cbs = [np.fliplr(cb) for cb in cbs if cb is not None]
     return cbs
 
 def fix_orientation(chessboard, points, img, debug=False):
@@ -925,8 +925,8 @@ def draw_boards(img, corners, chessboards, old_corners=None):
                  corners[row[indices], 1], 
                  color=color, linewidth=linewidth)
             if i > 0:
-                plot([corners[board[i-1, 0], 0], corners[board[i, -1], 0]], 
-                     [corners[board[i-1, 0], 1], corners[board[i, -1], 1]], 
+                plot([corners[board[i-1, -1], 0], corners[board[i, 0], 0]], 
+                     [corners[board[i-1, -1], 1], corners[board[i, 0], 1]], 
                      color=color, linewidth=2)
     show()
 
@@ -968,7 +968,7 @@ def save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, 
         return
     board = None
     for board_size in allowed_board_sizes:
-        boards = [x for x in chessboards if x.shape == board_size] 
+        boards = [x for x in chessboards if x.shape == (board_size['y'], board_size['x'])]
         if len(boards) != 0:
             board = boards[0]
             break
@@ -991,15 +991,15 @@ def save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, 
     file.close()
 
 def read_chessboard(filename, board_size):
-    chessboard = np.empty((board_size[0]*board_size[1], 2))
+    chessboard = np.empty((board_size['x']*board_size['y'], 2))
     with open(filename) as f:
         for i in range(chessboard.shape[0]):
-            point = [float(x.strip()) for x in file.readline().split(",")]
+            point = [float(x.strip()) for x in f.readline().split(",")]
             chessboard[i, :] = point
     return chessboard
 
 def get_3d_chessboard_points(square_x, square_y, square_size):
-    board_points = np.zeros((square_size*square_y, 3))
+    board_points = np.zeros((square_x*square_y, 3))
     for y in range(square_y):
         for x in range(square_x):
             board_points[y*square_x + x, 0] = x * square_size
