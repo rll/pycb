@@ -10,7 +10,6 @@ import theano
 import c_pycb
 
 def edge_orientations(img_angle, img_weight):
-
     v1 = np.zeros(2)
     v2 = np.zeros(2)
 
@@ -26,10 +25,9 @@ def edge_orientations(img_angle, img_weight):
     vec_angle[vec_angle > pi] -= pi
 
     # create histogram
-    angle_hist = np.zeros(bin_num)
-    for i in range(len(vec_angle)):
-        bin = max(min(np.floor(vec_angle[i]/(pi/bin_num)),bin_num-1),0)
-        angle_hist[bin] += vec_weight[i]
+    bins = np.maximum(np.minimum(np.floor(
+        vec_angle/(pi/bin_num)),bin_num-1),0).astype("uint8")
+    angle_hist = np.histogram(bins, weights=vec_weight, bins=np.arange(-0.5, bin_num))[0]
 
     modes, angle_hist_smoothed = find_modes_mean_shift(angle_hist, 1)
 
