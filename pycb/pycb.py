@@ -2,12 +2,51 @@ import numpy as np
 import scipy as sp
 from numpy import pi
 from scipy.misc import imresize
+import scipy.signal as sig
+from scipy import ndimage
 
-import theano
+import theano as th
+import theano.tensor as T
 #from theano.tensor.signal.conv import conv2d as theano_conv2d
 #from scipy.signal import convolve2d
 
 import c_pycb
+import time
+import utils
+
+def tconv(fsz):
+  x = T.tensor4("x", dtype="float32")
+  f = T.tensor4("f", dtype="float32")
+  u = T.nnet.conv2d(x, f)
+  sh = u.shape
+  pad = (fsz - 1) / 2
+  u_pad = T.zeros((sh[0], sh[1], sh[2] + pad * 2, sh[3] + pad * 2))
+  u_pad = T.set_subtensor(
+      u_pad[:, :, pad:(sh[2] + pad), pad:(sh[3] + pad)], u)
+  return th.function(inputs=[x, f], outputs=u_pad)
+
+tconv_9 = tconv(9)
+tconv_17 = tconv(17)
+tconv_25 = tconv(25)
+
+def sobel(h, w):
+  x = T.tensor4("x", dtype="float32")
+  f = np.random.rand(2, 1, 3, 3).astype("float32")
+  f[0] = np.array([[-1, 0, 1],
+                   [-1, 0, 1],
+                   [-1, 0, 1]]).astype("float32")[None, :]
+  f[1] = np.array([[-1, -1, -1],
+                   [0, 0, 0],
+                   [1, 1, 1]]).astype("float32")[None, :]
+  f = th.shared(f)
+  u = T.nnet.conv2d(x, f, image_shape=(1, 1, h, w),
+                    filter_shape=(2, 1, 3, 3))
+  sh = u.shape
+  u_pad = T.zeros((sh[0], sh[1], sh[2] + 2, sh[3] + 2))
+  u_pad = T.set_subtensor(
+      u_pad[:, :, 1:(sh[2] + 1), 1:(sh[3] + 1)], u)
+  return th.function(inputs=[x], outputs=u_pad)
+sobel_func = {}
 
 def edge_orientations(img_angle, img_weight):
     v1 = np.zeros(2)
@@ -61,13 +100,13 @@ def normpdf(x, mu, sigma):
     return NORM_PDF_C*(1.0/sigma)*np.exp((-(x-mu)**2)/(2.0*sigma**2))
 
 def find_modes_mean_shift(hist, sigma):
-
     # compute smoothed histogram
     hist_smoothed = np.zeros(len(hist))
-    for i in range(len(hist)):
-        j = np.arange(-round(2*sigma), round(2*sigma)+1, dtype=np.int)
-        idx = np.mod(i+j, len(hist))
-        hist_smoothed[i] = (hist[idx]*normpdf(j, 0, sigma)).sum()
+
+    j = np.arange(-round(2*sigma), round(2*sigma)+1, dtype=np.int)
+    t = np.tile(j, (len(hist), 1)) + np.tile(np.arange(len(hist)), (5, 1)).T
+    idx = np.mod(t, len(hist))
+    hist_smoothed = np.sum(hist[idx] * normpdf(j, 0, sigma), axis=1)
 
     modes = []
 
@@ -97,7 +136,6 @@ def find_modes_mean_shift(hist, sigma):
         if len(modes) == 0 or not j in found_bins:
             found_bins.add(j)
             modes.append((j, hist_smoothed[j]))
-
     # sort
     modes = np.array(modes)
     idx = np.argsort(modes[:,1], axis=0)[::-1]
@@ -370,8 +408,18 @@ def gradient(img, img_theano=None):
     #offset = (mask_u.shape[0]-1)/2
     #du_2 = ds[0, offset:height+offset, offset:width+offset]
     #dv_2 = ds[1, offset:height+offset, offset:width+offset]
+    du = None
+    dv = None
+    vectorize = False
+    if vectorize:
+        if img.shape not in sobel_func:
+          sobel_func[img.shape] = sobel(*img.shape)
 
-    du, dv = c_pycb.sobel(img)
+        s = sobel_func[img.shape](img.astype("float32")[None, :][None, :])
+        du = s[0, 0]
+        dv = s[0, 1]
+    else:
+        du, dv = c_pycb.sobel(img)
 
     angle = np.arctan2(dv, du)
     weight = np.sqrt(np.power(du, 2) + np.power(dv, 2))
@@ -434,7 +482,34 @@ def find_corners(img, tau=0.001, refine_corners=True, use_corner_thresholding=Tr
         #corners_b2_2 = s[3, r:height+r,r:width+r]
 
         #template = c_pycb.Template(*template_params)
-        corners_a1, corners_a2, corners_b1, corners_b2 = c_pycb.conv_template(img, template.a1, template.a2, template.b1, template.b2)
+        vectorize = True
+        if vectorize:
+            cur_func = None
+            if template.a1.shape[0] == 9:
+                cur_func = tconv_9
+            elif template.a1.shape[0] == 17:
+                cur_func = tconv_17
+            elif template.a1.shape[0] == 25:
+                cur_func = tconv_25
+            template.a1 = template.a1[None, :][None, :]
+            template.a2 = template.a2[None, :][None, :]
+            template.b1 = template.b1[None, :][None, :]
+            template.b2 = template.b2[None, :][None, :]
+            filts = np.concatenate((template.a1, template.a2,
+                                    template.b1, template.b2), axis=0).astype("float32")
+            valz = cur_func(img.astype("float32")[None, :][None, :], filts)
+            corners_a1 = valz[0, 0]
+            corners_a2 = valz[0, 1]
+            corners_b1 = valz[0, 2]
+            corners_b2 = valz[0, 3]
+        else:
+            corners_a1, corners_a2, corners_b1, corners_b2 = c_pycb.conv_template(
+                img, template.a1, template.a2, template.b1, template.b2)
+
+        # print " " + str(template.a1.shape)
+        # print " " + str(template.a2.shape)
+        # print " " + str(template.b1.shape)
+        # print " " + str(template.b2.shape)
         #corners_a1 = c_pycb.conv2(img, template.a1)
         #corners_a2 = c_pycb.conv2(img, template.a2)
         #corners_b1 = c_pycb.conv2(img, template.b1)
