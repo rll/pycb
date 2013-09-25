@@ -27,25 +27,6 @@ tconv_9 = tconv(9)
 tconv_17 = tconv(17)
 tconv_25 = tconv(25)
 
-def sobel(h, w):
-  x = T.tensor4("x", dtype="float32")
-  f = np.random.rand(2, 1, 3, 3).astype("float32")
-  f[0] = np.array([[-1, 0, 1],
-                   [-1, 0, 1],
-                   [-1, 0, 1]]).astype("float32")[None, :]
-  f[1] = np.array([[-1, -1, -1],
-                   [0, 0, 0],
-                   [1, 1, 1]]).astype("float32")[None, :]
-  f = th.shared(f)
-  u = T.nnet.conv2d(x, f, image_shape=(1, 1, h, w),
-                    filter_shape=(2, 1, 3, 3))
-  sh = u.shape
-  u_pad = T.zeros((sh[0], sh[1], sh[2] + 2, sh[3] + 2))
-  u_pad = T.set_subtensor(
-      u_pad[:, :, 1:(sh[2] + 1), 1:(sh[3] + 1)], u)
-  return th.function(inputs=[x], outputs=u_pad)
-sobel_func = {}
-
 def edge_orientations(img_angle, img_weight):
     v1 = np.zeros(2)
     v2 = np.zeros(2)
@@ -406,18 +387,7 @@ def gradient(img, img_theano=None):
     #offset = (mask_u.shape[0]-1)/2
     #du_2 = ds[0, offset:height+offset, offset:width+offset]
     #dv_2 = ds[1, offset:height+offset, offset:width+offset]
-    du = None
-    dv = None
-    vectorize = False
-    if vectorize:
-        if img.shape not in sobel_func:
-          sobel_func[img.shape] = sobel(*img.shape)
-
-        s = sobel_func[img.shape](img.astype("float32")[None, :][None, :])
-        du = s[0, 0]
-        dv = s[0, 1]
-    else:
-        du, dv = c_pycb.sobel(img)
+    du, dv = c_pycb.sobel(img)
 
     angle = np.arctan2(dv, du)
     weight = np.sqrt(np.power(du, 2) + np.power(dv, 2))
