@@ -11,8 +11,6 @@ import theano.tensor as T
 #from scipy.signal import convolve2d
 
 import c_pycb
-import time
-import utils
 
 def tconv(fsz):
   x = T.tensor4("x", dtype="float32")
