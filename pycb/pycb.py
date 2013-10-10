@@ -80,11 +80,12 @@ def normpdf(x, mu, sigma):
 
 def find_modes_mean_shift(hist, sigma):
     # compute smoothed histogram
-    hist_smoothed = np.zeros(len(hist))
+    num_bins = len(hist)
+    hist_smoothed = np.zeros(num_bins)
 
     j = np.arange(-round(2*sigma), round(2*sigma)+1, dtype=np.int)
-    t = np.tile(j, (len(hist), 1)) + np.tile(np.arange(len(hist)), (5, 1)).T
-    idx = np.mod(t, len(hist))
+    t = np.tile(j, (num_bins, 1)) + np.tile(np.arange(num_bins), (5, 1)).T
+    idx = np.mod(t, num_bins)
     hist_smoothed = np.sum(hist[idx] * normpdf(j, 0, sigma), axis=1)
 
     modes = []
@@ -97,22 +98,23 @@ def find_modes_mean_shift(hist, sigma):
     found_bins = set()
 
     # mode finding
-    for i in range(len(hist_smoothed)):
-        j = i
-        while True:
-            h0 = hist_smoothed[j]
-            j1 = np.mod(j+1, len(hist))
-            j2 = np.mod(j-1, len(hist))
-            h1 = hist_smoothed[j1]
-            h2 = hist_smoothed[j2]
-            if h1>=h0 and h1>=h2:
-                j = j1
-            elif h2>h0 and h2>h1:
-                j = j2
-            else:
-                break
+    for i in range(num_bins):
+        #j = i
+        #while True:
+        #    h0 = hist_smoothed[j]
+        #    j1 = np.mod(j+1, num_bins)
+        #    j2 = np.mod(j-1, num_bins)
+        #    h1 = hist_smoothed[j1]
+        #    h2 = hist_smoothed[j2]
+        #    if h1>=h0 and h1>=h2:
+        #        j = j1
+        #    elif h2>h0 and h2>h1:
+        #        j = j2
+        #    else:
+        #        break
+        j = c_pycb.mode_find_helper(i, hist_smoothed, num_bins)
 
-        if len(modes) == 0 or not j in found_bins:
+        if not j in found_bins or len(modes) == 0:
             found_bins.add(j)
             modes.append((j, hist_smoothed[j]))
     # sort
@@ -184,35 +186,37 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
         #  corner location refinement  #
         ################################
 
-        G = np.zeros((2,2), dtype=np.float)
-        b = np.zeros((2,1), dtype=np.float)
-        o_idx = -1
+        #G = np.zeros((2,2), dtype=np.float)
+        #b = np.zeros((2,1), dtype=np.float)
+        #o_idx = -1
 
-        for u in range(max(cu-r,0), min(cu+r+1,width)):
-            for v in range(max(cv-r,0), min(cv+r+1,height)):
-                o_idx += 1
+        #for u in range(max(cu-r,0), min(cu+r+1,width)):
+        #    for v in range(max(cv-r,0), min(cv+r+1,height)):
+        #        o_idx += 1
 
-                if  norm_os[o_idx] < 0.1:
-                    continue
+        #        if  norm_os[o_idx] < 0.1:
+        #            continue
 
-                # robust subpixel corner estimation
+        #        # robust subpixel corner estimation
 
-                # do not consider center pixel
+        #        # do not consider center pixel
 
-                if u!=cu or v!=cv:
+        #        if u!=cu or v!=cv:
 
-                    d1 = c_pycb.rel_pixel_distance(u,v,cu,cv,v1[i])
-                    d2 = c_pycb.rel_pixel_distance(u,v,cu,cv,v2[i])
+        #            d1 = c_pycb.rel_pixel_distance(u,v,cu,cv,v1[i])
+        #            d2 = c_pycb.rel_pixel_distance(u,v,cu,cv,v2[i])
 
-                    # if corresponds with either of the vectors / directions
-                    if ((d1 < 3 and abs(os[o_idx].dot(v1[i,:])) < 0.25) or
-                        (d2 < 3 and abs(os[o_idx].dot(v2[i,:])) < 0.25)):
-                        du = img_du[v,u]
-                        dv = img_dv[v,u]
-                        dvec = np.array([du, dv])
-                        H = dvec[np.newaxis].T.dot(dvec[np.newaxis])
-                        G += H
-                        b += H.dot(np.array([u, v])[:, np.newaxis])
+        #            # if corresponds with either of the vectors / directions
+        #            if ((d1 < 3 and abs(os[o_idx].dot(v1[i,:])) < 0.25) or
+        #                (d2 < 3 and abs(os[o_idx].dot(v2[i,:])) < 0.25)):
+        #                du = img_du[v,u]
+        #                dv = img_dv[v,u]
+        #                dvec = np.array([du, dv])
+        #                H = dvec[np.newaxis].T.dot(dvec[np.newaxis])
+        #                G += H
+        #                b += H.dot(np.array([u, v])[:, np.newaxis])
+
+        G, b = c_pycb.subpixel_helper(img_du, img_dv, os, norm_os, v1[i], v2[i], cu, cv, r, height, width)
 
         # set new corner location if G has full rank
         if np.linalg.matrix_rank(G) == 2:
@@ -229,47 +233,6 @@ def do_refine_corners(img_du, img_dv, img_angle, img_weight, corners, r):
             v2[i,:] = 0
 
     return refined, v1, v2
-
-def non_maximum_supression(img, n, tau, margin):
-
-    height = img.shape[0]
-    width = img.shape[1]
-
-    maxima = []
-
-    for i in range(n + margin, width - n - margin, n+1):
-        for j in range(n + margin, height - n - margin, n+1):
-
-            max_i = i
-            max_j = j
-            max_val = img[j,i]
-
-            for i2 in range(i, i + n + 1):
-                for j2 in range(j, j + n + 1):
-                    currval = img[j2,i2]
-                    if currval > max_val:
-                        max_i   = i2
-                        max_j   = j2
-                        max_val = currval
-
-            failed = False
-            for i2 in range(max_i - n, min(max_i + n + 1, width - margin)):
-                for j2 in range(max_j - n, min(max_j + n + 1, height - margin)):
-                    currval = img[j2,i2]
-                    not_in_window = (i2 < i or
-                                     i2 > (i + n) or
-                                     j2 < j or
-                                     j2 > (j + n))
-                    if currval > max_val and not_in_window:
-                        failed = True
-                        break
-                if failed:
-                    break
-
-            if max_val >= tau and not failed:
-                maxima.append((max_i, max_j))
-
-    return np.array(maxima)
 
 def score_corners(img,img_angle,img_weight,corners,v1,v2,radius):
 
@@ -300,28 +263,30 @@ def corner_correlation_score(img, img_weight, v1, v2):
 
     # center
     c = np.ones((1,2),dtype=np.float)*(img_weight.shape[0]+1)/2.0
-    
-    p1 = np.empty((np.prod(img.shape), 2), dtype=np.float)
-    for x in range(img_weight.shape[1]):
-        for y in range(img_weight.shape[0]):
-            # idx needs to be ordered this way to be consistent with the way
-            # vec_img is flattened below
-            idx = y * img_weight.shape[1] + x
-            p1[idx,0] = c[0,0]-x
-            p1[idx,1] = c[0,1]-y
+
+    #p1 = np.empty((np.prod(img.shape), 2), dtype=np.float)
+    #for x in range(img_weight.shape[1]):
+    #    for y in range(img_weight.shape[0]):
+    #        # idx needs to be ordered this way to be consistent with the way
+    #        # vec_img is flattened below
+    #        idx = y * img_weight.shape[1] + x
+    #        p1[idx,0] = c[0,0]-x
+    #        p1[idx,1] = c[0,1]-y
+
+    p1 = c_pycb.make_p1(c, img_weight.shape[0], img_weight.shape[1])
 
     v1_2 = v1[np.newaxis].T.dot(v1[np.newaxis])
     v2_2 = v2[np.newaxis].T.dot(v2[np.newaxis])
     p2 = p1 - p1.dot(v1_2)
     p3 = p1 - p1.dot(v2_2)
-    
+
     # Vectorize these computations
     p2_norm = np.sqrt(np.sum(p2**2, axis=-1))
     p3_norm = np.sqrt(np.sum(p3**2, axis=-1))
 
     vec_filter = -1*np.ones(np.prod(img.shape), dtype=np.float)
     vec_filter[(p2_norm <= 1.5) | (p3_norm <= 1.5)] = 1
-            
+
     # convert into vectors
     vec_weight = img_weight.flatten()
 
@@ -407,7 +372,7 @@ def find_corners(img, tau=0.001, refine_corners=True, use_corner_thresholding=Tr
 
     height, width = img.shape
 
-    du, dv, angle, weight = gradient(img)#, img_theano)
+    du, dv, angle, weight = c_pycb.gradient(img)#, img_theano)
 
     # scale input image
     min = np.min(img)
@@ -508,7 +473,7 @@ def find_corners(img, tau=0.001, refine_corners=True, use_corner_thresholding=Tr
         corners_img = np.maximum(corners_img, corners_2)
 
     # extract corner candidates via non maximum suppression
-    corners = non_maximum_supression(corners_img,3,0.025,5)
+    corners = c_pycb.non_maximum_supression(corners_img,3,0.025,5)
 
     # subpixel refinement
     if refine_corners:
@@ -715,7 +680,6 @@ def fix_orientation(chessboard, points, img, debug=False):
     # We know that 0 and 3 can't be the same color, and that 1 and 2 can't be
     # the same color.
     if (dark[0] == 0 and dark[1] == 3) or (dark[0] == 1 and dark[1] == 2):
-        print "Error finding orientation."
         return None
 
     if dark[0] == 0 and dark[1] == 1:
@@ -992,7 +956,7 @@ def extract_chessboards(img, include_unrefined=False, use_corner_thresholding=Tr
     if scale_factor < 1:
         corners = np.round(corners * (1.0/scale_factor)).astype(np.int)
         img = prepare_image(img)
-        du, dv, angle, weight = gradient(img)
+        du, dv, angle, weight = c_pycb.gradient(img)
         refined, v1, v2 = do_refine_corners(du, dv, angle, weight, corners, 15)
     else:
         refined = corners
@@ -1053,4 +1017,6 @@ if __name__ == "__main__":
     from scipy.misc import imread
     img = imread("../examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
+    print corners
+    print chessboards
     #draw_boards(img, corners, chessboards)
