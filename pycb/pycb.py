@@ -980,8 +980,8 @@ def save_chessboard(output_filename, corners, chessboards, allowed_board_sizes, 
     if board is None:
         if verbose:
             print "WARNING: couldn't find board with right size. Nothing written to file %s. Had " \
-                "board with size (%d, %d)" % (output_filename, 
-                                              chessboards[0].shape[0], 
+                "board with size (%d, %d)" % (output_filename,
+                                              chessboards[0].shape[0],
                                               chessboards[0].shape[1])
         return
     else:
@@ -1015,7 +1015,7 @@ def get_3d_chessboard_points(square_x, square_y, square_size):
 if __name__ == "__main__":
 
     from scipy.misc import imread
-    img = imread("../examples/scene2.jpg")
+    img = imread("../examples/NP5_3.jpg")
     corners, chessboards = extract_chessboards(img)
     print corners
     print chessboards
