@@ -1015,7 +1015,7 @@ def get_3d_chessboard_points(square_x, square_y, square_size):
 if __name__ == "__main__":
 
     from scipy.misc import imread
-    img = imread("../examples/NP5_3.jpg")
+    img = imread("../examples/scene2.jpg")
     corners, chessboards = extract_chessboards(img)
     print corners
     print chessboards
