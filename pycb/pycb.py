@@ -668,7 +668,7 @@ def fix_orientation(chessboard, points, img, debug=False):
             c = coords[i,0]
             if len(img.shape) == 3:
                 window_average = img[r-w:r+w, c-w:c+w, :].mean()
-                values[i] = img[coords[i,1], coords[i,0], :].mean(axis=1) - window_average
+                values[i] = img[coords[i,1], coords[i,0], :].mean() - window_average
             else:
                 window_average = img[r-w:r+w, c-w:c+w].mean()
                 values[i] = img[coords[i,1], coords[i,0]] - window_average
