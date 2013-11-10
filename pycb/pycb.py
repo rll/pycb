@@ -363,7 +363,7 @@ def gradient(img, img_theano=None):
 
     return du, dv, angle, weight
 
-def find_corners(img, tau=0.001, refine_corners=True, use_corner_thresholding=True):
+def find_corners(img, tau=0.001, refine_corners=True, use_corner_thresholding=False):
 
     img = prepare_image(img)
 
@@ -594,7 +594,7 @@ def fix_orientations(cbs, points, img):
     cbs = [np.fliplr(cb) for cb in cbs if cb is not None]
     return cbs
 
-def fix_orientation(chessboard, points, img, debug=False):
+def fix_orientation(chessboard, points, img, debug=True):
 
     corners = np.array([chessboard[0,0],
                         chessboard[0,-1],
@@ -627,7 +627,7 @@ def fix_orientation(chessboard, points, img, debug=False):
     deltas = deltas[:, np.newaxis]
 
     if debug:
-        from pylab import imshow, plot, scatter, show, hold
+        from pylab import imshow, plot, scatter, show, hold, xlim, ylim
         import matplotlib.cm as cm
         imshow(img, cmap=cm.Greys_r)
         hold(True)
@@ -647,16 +647,31 @@ def fix_orientation(chessboard, points, img, debug=False):
 
     dark_counts = np.zeros(4)
 
+    # The window size w to look at when subtracting out the local mean for
+    # comparing image intensities. The local mean subtraction is to account for
+    # the fact that one part of the chessboard may be more illuminated than
+    # another part.
+    side_difference = points[chessboard[0,0]] - points[chessboard[0,1]]
+    side_length = np.sqrt(np.sum(side_difference**2))
+    w = np.ceil(side_length)
+
     for step in range(steps):
 
         current_points = corner_points + (step + 1) * deltas * differences
 
         coords = np.round(current_points).astype(np.int)
 
-        if len(img.shape) == 3:
-            values = img[coords[:,1], coords[:,0], :].mean(axis=1)
-        else:
-            values = img[coords[:,1], coords[:,0]]
+        values = np.zeros(4)
+
+        for i in range(4):
+            r = coords[i,1]
+            c = coords[i,0]
+            if len(img.shape) == 3:
+                window_average = img[r-w:r+w, c-w:c+w, :].mean()
+                values[i] = img[coords[i,1], coords[i,0], :].mean(axis=1) - window_average
+            else:
+                window_average = img[r-w:r+w, c-w:c+w].mean()
+                values[i] = img[coords[i,1], coords[i,0]] - window_average
 
         idx = np.argsort(values)
         dark_counts[idx[:2]] += 1
@@ -664,9 +679,12 @@ def fix_orientation(chessboard, points, img, debug=False):
         if debug:
             print idx
             print dark_counts
+            print values
             imshow(img, cmap=cm.Greys_r)
             hold(True)
             scatter(coords[:, 0], coords[:, 1])
+            xlim(coords[:,0].min()*.9, coords[:, 0].max()*1.1)
+            ylim(coords[:,1].max()*1.1, coords[:, 1].min()*0.9)
             show()
 
     idx = np.argsort(dark_counts)[::-1]
