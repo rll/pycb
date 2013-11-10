@@ -594,7 +594,7 @@ def fix_orientations(cbs, points, img):
     cbs = [np.fliplr(cb) for cb in cbs if cb is not None]
     return cbs
 
-def fix_orientation(chessboard, points, img, debug=True):
+def fix_orientation(chessboard, points, img, debug=False):
 
     corners = np.array([chessboard[0,0],
                         chessboard[0,-1],
